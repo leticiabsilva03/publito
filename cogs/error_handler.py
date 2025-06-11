@@ -1,0 +1,1 @@
+# Comandos principais (/sicom, /updatesicom)

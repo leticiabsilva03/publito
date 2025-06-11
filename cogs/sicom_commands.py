@@ -1,0 +1,1 @@
+# Tratamento centralizado de erros
