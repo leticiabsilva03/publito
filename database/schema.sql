@@ -21,11 +21,11 @@ CREATE TABLE IF NOT EXISTS sicom.municipios_administracoes (
     cod_administracao INTEGER NOT NULL,
     CONSTRAINT fk_municipio
         FOREIGN KEY(cod_municipio)
-        REFERENCES municipios(cod_municipio)
+        REFERENCES sicom.municipios(cod_municipio)
         ON DELETE CASCADE,
     CONSTRAINT fk_administracao
         FOREIGN KEY(cod_administracao)
-        REFERENCES administracoes(cod_administracao)
+        REFERENCES sicom.administracoes(cod_administracao)
         ON DELETE RESTRICT,
     CONSTRAINT uq_municipio_adm UNIQUE (cod_municipio, cod_administracao)
 );
@@ -40,7 +40,7 @@ CREATE TABLE IF NOT EXISTS sicom.credenciais (
     status_validade boolean NOT NULL DEFAULT FALSE,
     CONSTRAINT fk_entidade
         FOREIGN KEY(cod_entidade)
-        REFERENCES municipios_administracoes(cod_entidade)
+        REFERENCES sicom.municipios_administracoes(cod_entidade)
         ON DELETE CASCADE
 );
 
