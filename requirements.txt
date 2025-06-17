@@ -3,3 +3,4 @@ python-dotenv
 asyncpg 
 sqlalchemy 
 databases[asyncpg]
+Unidecode
