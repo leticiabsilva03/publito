@@ -9,6 +9,10 @@ from database.db_manager import database
 
 # --- Configuração de Logging ---
 
+# verifica se o diretório de logs existe, se não, cria
+if not os.path.exists("logs"):
+    os.makedirs("logs")
+
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
