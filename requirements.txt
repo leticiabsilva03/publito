@@ -4,3 +4,4 @@ asyncpg
 sqlalchemy 
 databases[asyncpg]
 Unidecode
+pandas
