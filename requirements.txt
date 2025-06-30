@@ -5,3 +5,5 @@ sqlalchemy
 databases[asyncpg]
 Unidecode
 pandas
+python-docx
+reportlab
