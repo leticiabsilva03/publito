@@ -29,10 +29,17 @@ class SicomCommands(commands.Cog):
         self.bot = bot
 
     def _formatar_e_validar_nome(self, nome: str) -> str:
+        """
+        Formata o nome do município e valida suas regras.
+        - Remove acentos.
+        - Converte para Title Case (Primeiras Letras Maiúsculas).
+        - Verifica se contém números.
+        Retorna o nome formatado ou levanta um ValueError se for inválido.
+        """
+        # Remove acentos (ex: "São Paulo" -> "Sao Paulo")
         nome_sem_acento = unidecode.unidecode(nome)
-        if not re.match(r"^[A-Za-z\s]+$", nome_sem_acento):
-    
-        # Adiciona .strip() para remover espaços no início e no fim
+
+       # Adiciona .strip() para remover espaços no início e no fim
         nome_limpo = nome_sem_acento.strip()
     
         if not re.match(r"^[A-Za-z\s]+$", nome_limpo):
