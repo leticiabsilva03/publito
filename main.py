@@ -52,8 +52,8 @@ class MyBot(commands.Bot):
         # 2. Carregar Cogs (extensões com comandos)
         cogs_to_load = [
             'cogs.sicom_commands',
-            'cogs.hr_commands'
-            #,'cogs.error_handler' 
+            'cogs.hr_commands',
+            'cogs.error_handler' 
         ]
         for cog in cogs_to_load:
             try:
