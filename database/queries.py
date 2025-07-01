@@ -2,7 +2,7 @@ import logging
 from typing import List, Dict, Optional
 from sqlalchemy import select, update, or_, insert
 from datetime import date
-
+from asyncpg.exceptions import UniqueViolationError
 # Importa os modelos e a instância de conexão corretos
 from .db_manager import database
 from .models import municipios, administracoes, municipios_administracoes, credenciais
@@ -123,35 +123,33 @@ async def update_credenciais(entity_id: int, updates: Dict) -> bool:
         return False
     
 async def insert_municipio(nome: str, cnpj: str) -> Dict[str, any]:
-    """
-    Tenta inserir um novo município na tabela sicom.municipios.
-    Retorna um dicionário com o status da operação.
-    """
+    """Tenta inserir um novo município na tabela sicom.municipios."""
     try:
-        # Cria a query de INSERT usando SQLAlchemy Core
         query = insert(municipios).values(nom_municipio=nome, cnpj_municipio=cnpj)
-        
-        # Executa a query
         await database.execute(query)
-        
-        # Retorna um status de sucesso
         return {"success": True, "message": "Município registrado com sucesso!"}
 
-    except Exception as e:
-        # O banco de dados vai gerar um erro se o nome ou CNPJ já existirem
-        # devido às constraints 'UNIQUE'. 
+    # Captura a exceção específica de violação de unicidade
+    except UniqueViolationError as e:
         error_message = str(e).lower()
-        if "unique constraint" in error_message:
-            if "nom_municipio" in error_message:
-                logger.warning(f"Tentativa de inserir município duplicado pelo nome: {nome}")
-                return {"success": False, "message": f"❌ O município '{nome}' já existe no banco de dados."}
-            if "cnpj_municipio" in error_message:
-                logger.warning(f"Tentativa de inserir município duplicado pelo CNPJ: {cnpj}")
-                return {"success": False, "message": f"❌ O CNPJ '{cnpj}' já pertence a outro município no banco de dados."}
+        if "nom_municipio" in error_message:
+            logger.warning(f"Tentativa de inserir município duplicado pelo nome: {nome}")
+            return {"success": False, "message": f"❌ O município '{nome}' já existe no banco de dados."}
+        if "cnpj_municipio" in error_message:
+            logger.warning(f"Tentativa de inserir município duplicado pelo CNPJ: {cnpj}")
+            return {"success": False, "message": f"❌ O CNPJ '{cnpj}' já pertence a outro município."}
         
-        # Para qualquer outro erro inesperado
+        # Fallback para outras violações de unicidade
+        logger.error(f"Erro de violação de unicidade não esperado: {e}", exc_info=True)
+        return {"success": False, "message": "Ocorreu um erro de duplicidade não esperado."}
+        
+    except Exception as e:
         logger.error(f"Erro inesperado ao inserir município {nome}: {e}", exc_info=True)
-        return {"success": False, "message": "Ocorreu um erro inesperado no servidor. A equipe foi notificada."}
+        return {"success": False, "message": "Ocorreu um erro inesperado no servidor."}
+        
+    except Exception as e:
+        logger.error(f"Erro inesperado ao inserir município {nome}: {e}", exc_info=True)
+        return {"success": False, "message": "Ocorreu um erro inesperado no servidor."}
 
 async def create_municipio_administracao_link(municipio_id: int, administracao_id: int) -> Optional[int]:
     """

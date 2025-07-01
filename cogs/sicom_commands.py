@@ -36,13 +36,14 @@ class SicomCommands(commands.Cog):
         """
         # Remove acentos (ex: "São Paulo" -> "Sao Paulo")
         nome_sem_acento = unidecode.unidecode(nome)
-        
-        # Verifica se o nome sem acento contém apenas letras e espaços
-        if not re.match(r"^[A-Za-z\s]+$", nome_sem_acento):
+    
+        # Adiciona .strip() para remover espaços no início e no fim
+        nome_limpo = nome_sem_acento.strip()
+    
+        if not re.match(r"^[A-Za-z\s]+$", nome_limpo):
             raise ValueError("O nome do município deve conter apenas letras e espaços.")
-            
-        # Converte para "Title Case" (ex: "sao paulo" -> "Sao Paulo")
-        return nome_sem_acento.title()
+        
+        return nome_limpo.title()
 
     # Função de autocomplete para a opção 'municipio' do comando /sicom
     async def municipio_autocomplete(
