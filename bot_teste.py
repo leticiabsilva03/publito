@@ -8,7 +8,7 @@ from discord import app_commands
 load_dotenv()
 
 # Obtém o token da variável de ambiente 'DISCORD_BOT_TOKEN'
-TOKEN = os.getenv('DISCORD_BOT_TOKEN')
+TOKEN = os.getenv('DISCORD_TOKEN')
 
 # ID do servidor para testes rápidos
 guild_id = os.getenv('DISCORD_GUILD_ID')
