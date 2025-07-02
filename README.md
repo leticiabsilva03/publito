@@ -103,8 +103,8 @@ O projeto resolve o problema da descentralização de informações e da falta d
    DATABASE_URL=postgres://USUARIO:SENHA@HOST:PORTA/DB_NAME
    GUILD_ID=ID_DO_SERVIDOR
 
-   EMAIL_HOST=servidor.smtp.com
-   EMAIL_PORT=465
+   EMAIL_HOST=smtp
+   EMAIL_PORT=port
    EMAIL_USER=seu_email@empresa.com
    EMAIL_PASSWORD="sua#senha#aqui"
    EMAIL_RECIPIENT=rh@empresa.com
