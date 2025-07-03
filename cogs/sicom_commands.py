@@ -118,11 +118,111 @@ class SicomCommands(commands.Cog):
         else:
             await interaction.followup.send("❌ Ocorreu um erro ao atualizar as credenciais.", ephemeral=True)
 
-    # --- Outros comandos (/registramunicipio, /registrasicom) continuariam aqui... ---
-    # O código deles já está bem alinhado com o padrão, pois já chamam a camada de queries.
-    # Por brevidade, o restante do código é omitido, mas a estrutura permanece.
+    # --- COMANDO /registramunicipio ---
+    @app_commands.command(name="registramunicipio", description="Registra um novo município no sistema.")
+    @app_commands.checks.has_role("Administrador SICOM") # Protegido pelo cargo
+    @app_commands.describe(
+        nome="O nome oficial do município (sem números ou caracteres especiais).",
+        cnpj="O CNPJ do município (apenas 14 dígitos numéricos)."
+    )
+    async def registramunicipio(self, interaction: discord.Interaction, nome: str, cnpj: str):
+        await interaction.response.defer(ephemeral=True)
+
+        # 1. Validação e Formatação do CNPJ
+        if not cnpj.isdigit() or len(cnpj) != 14:
+            await interaction.followup.send("❌ **Erro de Validação:** O CNPJ deve conter exatamente 14 dígitos numéricos.", ephemeral=True)
+            return
+            
+        # 2. Validação e Formatação do Nome do Município
+        try:
+            nome_formatado = self._formatar_e_validar_nome(nome)
+        except ValueError as e:
+            await interaction.followup.send(f"❌ **Erro de Validação:** {e}", ephemeral=True)
+            return
+            
+        # 3. Tentativa de Inserção no Banco de Dados
+        resultado = await insert_municipio(nome=nome_formatado, cnpj=cnpj)
+        
+        # 4. Feedback para o Usuário
+        if resultado["success"]:
+            embed = discord.Embed(
+                title="✅ Município Registrado com Sucesso!",
+                description=f"O município **{nome_formatado}** foi adicionado ao sistema.",
+                color=discord.Color.green()
+            )
+            embed.add_field(name="Nome Registrado", value=nome_formatado, inline=True)
+            embed.add_field(name="CNPJ Registrado", value=cnpj, inline=True)
+            await interaction.followup.send(embed=embed, ephemeral=True)
+        else:
+            # Envia a mensagem de erro específica retornada pela função de query
+            await interaction.followup.send(resultado["message"], ephemeral=True)
+
+    # --- COMANDO /registrasicom ---
+    @app_commands.command(name="registrasicom", description="Registra uma nova credencial no sistema.")
+    @app_commands.checks.has_role("Administrador SICOM") # Protegido pelo cargo
+    @app_commands.autocomplete(municipio=municipio_autocomplete, administracao=administracao_autocomplete)
+    @app_commands.describe(
+        municipio="O município ao qual a credencial pertence.",
+        administracao="A administração (PM, CM, etc.) da credencial.",
+        cpf_usuario="O CPF do usuário da credencial (11 dígitos numéricos).",
+        senha="A senha de acesso.",
+        status_validade="A credencial está ativa? (Padrão: Sim)"
+    )
+    async def registrasicom(
+        self,
+        interaction: discord.Interaction,
+        municipio: str,
+        administracao: str,
+        cpf_usuario: str,
+        senha: str,
+        status_validade: bool = True
+    ):
+        await interaction.response.defer(ephemeral=True)
+
+        # 1. Validação de formato do CPF
+        if not cpf_usuario.isdigit() or len(cpf_usuario) != 11:
+            await interaction.followup.send("❌ **Erro de Validação:** O CPF deve conter exatamente 11 dígitos numéricos.", ephemeral=True)
+            return
+
+        municipio_id = int(municipio)
+        administracao_id = int(administracao)
+
+        # 2. Busca (ou cria) o vínculo entre município e administração
+        entity_id = await busca_entidade_id(municipio_id, administracao_id)
+        if not entity_id:
+            # Se não existe, cria o vínculo
+            logger.info(f"Vínculo não encontrado para mun_id {municipio_id} e adm_id {administracao_id}. Criando novo...")
+            entity_id = await create_municipio_administracao_link(municipio_id, administracao_id)
+            if not entity_id:
+                await interaction.followup.send("❌ Ocorreu um erro ao criar o vínculo entre o município e a administração.", ephemeral=True)
+                return
+        
+        # 3. Verifica se já existe uma credencial para este vínculo
+        if await check_credencial(entity_id):
+            await interaction.followup.send("❌ **Erro:** Já existe uma credencial para esta combinação de município e administração. Use o comando `/atualizasicom` para modificá-la.", ephemeral=True)
+            return
+            
+        # 4. Insere a nova credencial
+        success = await insert_credencial(
+            entity_id=entity_id,
+            cpf_usuario=cpf_usuario,
+            senha=senha,
+            status_validade=status_validade
+        )
+
+        # 5. Feedback para o usuário
+        if success:
+            embed = discord.Embed(
+                title="✅ Credencial Registrada com Sucesso!",
+                description="Uma nova credencial foi adicionada ao sistema.",
+                color=discord.Color.green()
+            )
+            await interaction.followup.send(embed=embed, ephemeral=True)
+        else:
+            await interaction.followup.send("❌ Ocorreu um erro inesperado ao tentar registrar a credencial no banco de dados.", ephemeral=True)
 
 
+# Função obrigatória que o bot chama para registrar o Cog
 async def setup(bot: commands.Bot):
     await bot.add_cog(SicomCommands(bot))
     logger.info("Cog 'SicomCommands' carregado com sucesso.")
