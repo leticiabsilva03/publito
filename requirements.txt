@@ -7,3 +7,5 @@ Unidecode
 pandas
 python-docx
 reportlab
+httpx
+beautifulsoup4

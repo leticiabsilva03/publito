@@ -45,8 +45,6 @@ class SicomCommands(commands.Cog):
         if not re.match(r"^[A-Za-z\s]+$", nome_limpo):
             raise ValueError("O nome do município deve conter apenas letras e espaços.")
         return nome_sem_acento.title()
-        
-        return nome_limpo.title()
 
     # --- AUTOCOMPLETES ---
     async def municipio_autocomplete(self, interaction: discord.Interaction, current: str) -> list[app_commands.Choice[str]]:

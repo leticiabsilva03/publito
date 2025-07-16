@@ -46,3 +46,14 @@ credenciais = sqlalchemy.Table(
     sqlalchemy.Column("status_validade", sqlalchemy.Boolean, nullable=False, default=False),
     schema="sicom"
 )
+
+comunicados = sqlalchemy.Table(
+    "comunicados",
+    metadata,
+    sqlalchemy.Column("id", sqlalchemy.Integer, primary_key=True),
+    sqlalchemy.Column("url", sqlalchemy.String, nullable=False, unique=True),
+    sqlalchemy.Column("titulo_comunicado", sqlalchemy.String),
+    sqlalchemy.Column("data_postagem", sqlalchemy.DateTime),
+    sqlalchemy.Column("data_postagem_discord", sqlalchemy.DateTime, server_default=sqlalchemy.func.now()),
+    schema="sicom"
+)

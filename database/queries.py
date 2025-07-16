@@ -5,7 +5,7 @@ from datetime import date
 from asyncpg.exceptions import UniqueViolationError
 # Importa os modelos e a instância de conexão corretos
 from .db_manager import database
-from .models import municipios, administracoes, municipios_administracoes, credenciais
+from .models import municipios, administracoes, municipios_administracoes, credenciais, comunicados
 
 logger = logging.getLogger(__name__)
 
@@ -193,3 +193,21 @@ async def insert_credencial(entity_id: int, cpf_usuario: str, senha: str, status
     except Exception as e:
         logger.error(f"Erro ao inserir credencial para entidade {entity_id}: {e}", exc_info=True)
         return False
+
+async def verifica_comunicado_postado(url: str) -> bool:
+    """Verifica se um comunicado com uma determinada URL já foi postado."""
+    try:
+        query = select(comunicados.c.id).where(comunicados.c.url == url)
+        result = await database.fetch_one(query)
+        return result is not None
+    except Exception as e:
+        logger.error(f"Erro ao verificar comunicado postado para a URL {url}: {e}")
+        return True # Assume que foi postado em caso de erro para evitar spam
+
+async def marcar_comunicado_postado(url: str, titulo_comunicado: str):
+    """Marca um comunicado como postado, inserindo-o no banco de dados."""
+    try:
+        query = insert(comunicados).values(url=url, titulo_comunicado=titulo_comunicado)
+        await database.execute(query)
+    except Exception as e:
+        logger.error(f"Erro ao marcar comunicado como postado para a URL {url}: {e}")

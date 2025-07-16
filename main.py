@@ -53,7 +53,8 @@ class MyBot(commands.Bot):
         cogs_to_load = [
             'cogs.sicom_commands',
             'cogs.hr_commands',
-            'cogs.error_handler' 
+            'cogs.error_handler',
+            'cogs.comunicados_task'
         ]
         for cog in cogs_to_load:
             try:

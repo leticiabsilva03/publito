@@ -55,3 +55,12 @@ ADD CONSTRAINT check_cpf_usuario_format CHECK (cpf_usuario ~ '^\d{11}$');
 CREATE INDEX IF NOT EXISTS idx_municipio_nome ON sicom.municipios (nom_municipio);
 CREATE INDEX IF NOT EXISTS idx_adm_sigla ON sicom.administracoes (sigla_administracao);
 CREATE INDEX IF NOT EXISTS idx_adm_descricao ON sicom.administracoes (des_administracao);
+
+
+CREATE TABLE sicom.comunicados (
+    id SERIAL PRIMARY KEY,
+    url VARCHAR(255) NOT NULL UNIQUE,
+    titulo_comunicado VARCHAR(255),
+    data_postagem TIMESTAMP,
+    data_postagem_discord TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
