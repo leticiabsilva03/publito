@@ -8,7 +8,7 @@ from datetime import time
 
 # Importando das outras camadas
 from services.comunicados_service import fetch_ultimos_comunicados
-from views.comunicado_sicom_views import insere_comunicado_embed
+from views.comunicado_sicom_view import insere_comunicado_embed
 from database.queries import verifica_comunicado_postado , marcar_comunicado_postado
 
 logger = logging.getLogger(__name__)

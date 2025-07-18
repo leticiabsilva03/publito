@@ -20,7 +20,7 @@ from database.queries import (
     insert_credencial
 )
 # Importando da camada de Visão
-from views.sicom_views import create_credentials_embed
+from views.sicom_view import create_credentials_embed
 
 logger = logging.getLogger(__name__)
 

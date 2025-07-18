@@ -1,5 +1,5 @@
 import pytest
-from cogs.hr_commands import parse_time_to_minutes
+from cogs.rh_commands import parse_time_to_minutes
 
 @pytest.mark.parametrize("input_str, expected_minutes", [
     ("2h", 120),

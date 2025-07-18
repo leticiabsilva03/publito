@@ -9,3 +9,4 @@ python-docx
 reportlab
 httpx
 beautifulsoup4
+pyodbc  
