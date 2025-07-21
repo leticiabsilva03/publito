@@ -61,6 +61,6 @@ CREATE TABLE sicom.comunicados (
     id SERIAL PRIMARY KEY,
     url VARCHAR(255) NOT NULL UNIQUE,
     titulo_comunicado VARCHAR(255),
-    data_postagem TIMESTAMP,
+    data_postagem VARCHAR(15),
     data_postagem_discord TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );

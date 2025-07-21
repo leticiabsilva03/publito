@@ -5,6 +5,7 @@ from discord.ext import commands, tasks
 import logging
 import os
 from datetime import time
+from zoneinfo import ZoneInfo
 
 # Importando das outras camadas
 from services.comunicados_service import fetch_ultimos_comunicados
@@ -14,10 +15,32 @@ from database.queries import verifica_comunicado_postado , marcar_comunicado_pos
 logger = logging.getLogger(__name__)
 
 # Horários para a tarefa ser executada (no fuso horário do servidor)
-VERIFICA_HORARIOS = [
-    time(hour=9, minute=0),
-    time(hour=14, minute=0)
-]
+FUSO_SAO_PAULO = ZoneInfo("America/Sao_Paulo")
+# Carrega os horários do .env, com um valor padrão caso não esteja definido
+# Exemplo: "09:00,14:00" para verificar às 9h e 14h
+horarios_str = os.getenv("COMUNICADOS_HORARIOS", "09:00,14:00")
+VERIFICA_HORARIOS = []
+
+try:
+    # Separa a string por vírgulas, ex: "09:00,14:00" -> ["09:00", "14:00"]
+    times_str_list = [t.strip() for t in horarios_str.split(',') if t.strip()]
+    for t_str in times_str_list:
+        # Separa cada horário por dois pontos, ex: "09:00" -> [9, 0]
+        h, m = map(int, t_str.split(':'))
+        VERIFICA_HORARIOS.append(time(hour=h, minute=m, tzinfo=FUSO_SAO_PAULO))
+    
+    if not VERIFICA_HORARIOS:
+        raise ValueError("A variável de horários está vazia.")
+
+    logger.info(f"Tarefa de comunicados agendada para os seguintes horários (America/Sao_Paulo): {times_str_list}")
+
+except Exception as e:
+    logger.error(f"Formato inválido para COMUNICADOS_HORARIOS ('{horarios_str}'). Usando horários padrão (09:00/14:00). Erro: {e}")
+    # Se houver qualquer erro no formato, usa um horário padrão seguro.
+    VERIFICA_HORARIOS = [
+        time(hour=9, minute=0, tzinfo=FUSO_SAO_PAULO),
+        time(hour=14, minute=00, tzinfo=FUSO_SAO_PAULO)
+    ]
 
 class ComunicadoSicom(commands.Cog):
     """Cog para gerenciar comunicados do SICOM."""
@@ -59,7 +82,7 @@ class ComunicadoSicom(commands.Cog):
 
                 try:
                     await channel.send(content="@everyone, um novo comunicado do SICOM foi publicado!", embed=embed)
-                    await marcar_comunicado_postado(comunicados['link'], comunicados['titulo_comunicado'])
+                    await marcar_comunicado_postado(comunicados['link'], comunicados['titulo_comunicado'], comunicados['data_comunicado'])
                     logger.info("Novo comunicado '%s' enviado com sucesso para o Discord.", comunicados['titulo_comunicado'])
                 except discord.Forbidden:
                     logger.error("Permissão negada para enviar mensagem no canal %s.", channel.name)

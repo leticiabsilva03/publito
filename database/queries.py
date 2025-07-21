@@ -204,10 +204,10 @@ async def verifica_comunicado_postado(url: str) -> bool:
         logger.error(f"Erro ao verificar comunicado postado para a URL {url}: {e}")
         return True # Assume que foi postado em caso de erro para evitar spam
 
-async def marcar_comunicado_postado(url: str, titulo_comunicado: str):
+async def marcar_comunicado_postado(url: str, titulo_comunicado: str, data_comunicado: str) -> None:
     """Marca um comunicado como postado, inserindo-o no banco de dados."""
     try:
-        query = insert(comunicados).values(url=url, titulo_comunicado=titulo_comunicado)
+        query = insert(comunicados).values(url=url, titulo_comunicado=titulo_comunicado, data_postagem=data_comunicado)
         await database.execute(query)
     except Exception as e:
         logger.error(f"Erro ao marcar comunicado como postado para a URL {url}: {e}")
