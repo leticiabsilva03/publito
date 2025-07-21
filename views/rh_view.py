@@ -1,15 +1,17 @@
+# views/rh_view.py
 import discord
 import asyncio
 import logging
 from typing import Dict, List, Any
-import locale
 from datetime import timedelta, datetime
 import io
+import os
 
-# Importando os serviços
+# Importando os serviços e helpers
 from database.portal_service import PortalDatabaseService
 from services.pdf_service import gerar_pdf_horas_extras
-from services.email_service import enviar_email_com_anexo
+from services.email_service import enviar_email_com_anexo # Renomeado para consistência
+from utils.helpers import parse_time_to_minutes # Supondo que o helper foi movido
 
 logger = logging.getLogger(__name__)
 
@@ -32,99 +34,65 @@ def formatar_timedelta(td: timedelta) -> str:
     minutes, _ = divmod(remainder, 60)
     return f"{hours:02d}:{minutes:02d}"
 
-# --- ETAPA 5: View de Confirmação na DM (COM A LÓGICA DE LIMPEZA) ---
-class ConfirmacaoEnvioEmailView(discord.ui.View):
-    def __init__(self, dados_formulario: Dict, pdf_stream: io.BytesIO):
-        super().__init__(timeout=3600.0) # Timeout de 1 hora
+# --- NOVA VIEW DE APROVAÇÃO DO GESTOR ---
+class ManagerApprovalView(discord.ui.View):
+    """View enviada ao gestor para aprovar ou rejeitar a solicitação."""
+    def __init__(self, original_author: discord.Member, dados_formulario: Dict):
+        super().__init__(timeout=86400) # Timeout de 24 horas para a aprovação
+        self.original_author = original_author
         self.dados_formulario = dados_formulario
-        self.pdf_stream = pdf_stream
 
-    @discord.ui.button(label="Enviar para o RH", style=discord.ButtonStyle.primary, emoji="📨")
-    async def enviar_email_rh(self, interaction: discord.Interaction, button: discord.ui.Button):
-        # A primeira resposta à interação é para dar um feedback imediato ao usuário.
-        await interaction.response.edit_message(
-            content="🔄 Enviando e-mail para o RH, por favor aguarde...",
-            view=None # Remove os botões imediatamente
+    @discord.ui.button(label="Aprovar", style=discord.ButtonStyle.success, emoji="✔️")
+    async def approve(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.defer(ephemeral=False, thinking=True) # Resposta visível no canal de DM
+
+        # 1. Prepara os dados da assinatura eletrônica
+        horas_aprovadas = {
+            "name": interaction.user.display_name,
+            "email": str(interaction.user), # Formato Nome#1234
+            "timestamp": datetime.now().strftime('%d/%m/%Y %H:%M:%S')
+        }
+
+        # 2. Gera o NOVO PDF, agora com a assinatura
+        signed_pdf_stream = gerar_pdf_horas_extras(
+            dados_formulario=self.dados_formulario, 
+            resp_aprovacao=horas_aprovadas
         )
 
+        # 3. Envia o PDF assinado para o RH
         loop = asyncio.get_running_loop()
-        success = await loop.run_in_executor(
-            None,
-            enviar_email_com_anexo,
-            self.dados_formulario,
-            self.pdf_stream
+        email_success = await loop.run_in_executor(
+            None, enviar_email_com_anexo, self.dados_formulario, signed_pdf_stream
         )
 
-        # Usamos followup.edit_message para editar a mensagem de "Enviando..."
-        if success:
-            await interaction.edit_original_response(
-                content="✅ E-mail enviado com sucesso para o RH!"
-            )
+        # 4. Desabilita os botões e atualiza a mensagem do gestor
+        for item in self.children:
+            item.disabled = True
+        await interaction.edit_original_response(content=f"Solicitação de {self.original_author.display_name} **aprovada** por você.", view=self)
+
+        # 5. Notifica o colaborador
+        if email_success:
+            await self.original_author.send(f"✅ Sua solicitação de banco de horas foi **aprovada** por {interaction.user.display_name} e enviada ao RH.")
         else:
-            await interaction.edit_original_response(
-                content="❌ Falha ao enviar o e-mail. Verifique os logs ou contate um administrador."
-            )
-        
-        self.stop() # Encerra a view após a ação
-
-# --- ETAPA 4: View de Revisão Final ("Wizard") ---
-class RevisaoFinalView(discord.ui.View):
-    def __init__(self, dados_formulario: Dict):
-        super().__init__(timeout=600.0)
-        self.dados_formulario = dados_formulario
-
-    @discord.ui.button(label="Confirmar e Gerar PDF", style=discord.ButtonStyle.success, emoji="✅")
-    async def confirmar(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.edit_message(
-            content="🔄 Processando sua solicitação... O PDF será enviado para sua DM.",
-            embed=None, view=None
-        )
-        try:
-            loop = asyncio.get_running_loop()
-            
-            # 1. Gera o PDF em memória. O cursor está no final do stream.
-            pdf_stream = await loop.run_in_executor(None, gerar_pdf_horas_extras, self.dados_formulario)
-            
-            # --- CORREÇÃO APLICADA AQUI ---
-            
-            # 2. Prepara o arquivo para a DM:
-            #    a. Move o cursor para o INÍCIO do stream.
-            pdf_stream.seek(0)
-            #    b. Formata o nome do arquivo.
-            nome_colaborador = self.dados_formulario['dados_colaborador']['nome'].replace(' ', '')
-            data_hoje = datetime.now().strftime('%d%m%Y')
-            nome_arquivo = f"{nome_colaborador}{data_hoje}.pdf"
-            #    c. Cria o objeto discord.File. Ele agora lerá o stream desde o início.
-            pdf_file_for_discord = discord.File(pdf_stream, filename=nome_arquivo)
-
-            # 3. Prepara o stream para o E-MAIL:
-            #    a. Move o cursor para o INÍCIO NOVAMENTE para garantir a leitura completa.
-            pdf_stream.seek(0)
-            #    b. Cria uma cópia em memória para o anexo do e-mail.
-            pdf_stream_for_email = io.BytesIO(pdf_stream.read())
-
-            # ------------------------------------
-
-            view_confirmacao_email = ConfirmacaoEnvioEmailView(self.dados_formulario, pdf_stream_for_email)
-
-            try:
-                dm_channel = await interaction.user.create_dm()
-                await dm_channel.send("Seu formulário está pronto. Revise o PDF e clique abaixo para enviá-lo ao RH.", file=pdf_file_for_discord, view=view_confirmacao_email)
-                await interaction.edit_original_response(content="✅ Formulário gerado! Verifique sua DM para revisar e enviar.")
-            except discord.Forbidden:
-                await interaction.edit_original_response(content="❌ Não consegui enviar o formulário na sua DM.")
-        except Exception as e:
-            logger.error(f"Erro ao gerar o PDF ou enviar para a DM: {e}", exc_info=True)
-            await interaction.edit_original_response(content="❌ Ocorreu um erro crítico ao gerar seu formulário.")
+            await self.original_author.send(f"⚠️ Sua solicitação de banco de horas foi **aprovada**, mas ocorreu um erro no envio para o RH. Fale com um administrador.")
         
         self.stop()
 
-    @discord.ui.button(label="Cancelar", style=discord.ButtonStyle.danger)
-    async def cancelar(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.edit_message(content="❌ Solicitação cancelada.", embed=None, view=None)
+    @discord.ui.button(label="Rejeitar", style=discord.ButtonStyle.danger, emoji="✖️")
+    async def reject(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.defer(ephemeral=False)
+
+        # Desabilita os botões e atualiza a mensagem do gestor
+        for item in self.children:
+            item.disabled = True
+        await interaction.edit_original_response(content=f"Solicitação de {self.original_author.display_name} **rejeitada** por você.", view=self)
+
+        # Notifica o colaborador
+        await self.original_author.send(f"❌ Sua solicitação de banco de horas foi **rejeitada** por {interaction.user.display_name}.")
+        
         self.stop()
 
-# --- ETAPA 3: Formulário Final (Modal) ---
+# --- ETAPA 3: Formulário Final (Modal com lógica de aprovação) ---
 class FormularioJustificativaModal(discord.ui.Modal, title="Justificativa e Atividades"):
     justificativa = discord.ui.TextInput(
         label="Justificativa das Horas Extras",
@@ -142,69 +110,56 @@ class FormularioJustificativaModal(discord.ui.Modal, title="Justificativa e Ativ
         self.dados_formulario = dados_formulario
 
     async def on_submit(self, interaction: discord.Interaction):
-        # A linha abaixo foi removida da versão final do "Wizard", mas mantendo no seu código:
         await interaction.response.defer(thinking=True, ephemeral=True) 
 
         self.dados_formulario["justificativa"] = self.justificativa.value
         self.dados_formulario["atividades"] = self.atividades.value
 
         try:
-            loop = asyncio.get_running_loop()
+            # 1. Gera o PDF inicial (sem assinatura) para revisão do gestor
+            pdf_stream = gerar_pdf_horas_extras(self.dados_formulario)
+            nome_colaborador = self.dados_formulario['dados_colaborador']['nome'].replace(' ', '')
+            nome_arquivo = f"Solicitacao_{nome_colaborador}.pdf"
+            pdf_file = discord.File(pdf_stream, filename=nome_arquivo)
+
+            # 2. Encontra o gestor a partir do .env
+            manager_id_str = os.getenv("MANAGER_USER_ID")
+            if not manager_id_str:
+                await interaction.followup.send("❌ Erro de configuração: O ID do gestor não foi definido.", ephemeral=True)
+                return
             
-            # 1. Gera o PDF em background
-            pdf_stream = await loop.run_in_executor(None, gerar_pdf_horas_extras, self.dados_formulario)
+            manager = await interaction.client.fetch_user(int(manager_id_str))
             
-            # --- CORREÇÃO APLICADA AQUI ---
+            # 3. Envia o PDF e a View de aprovação para o gestor
+            approval_view = ManagerApprovalView(
+                original_author=interaction.user,
+                dados_formulario=self.dados_formulario
+            )
+            await manager.send(
+                f"Olá! O colaborador **{interaction.user.display_name}** enviou uma solicitação de banco de horas para sua aprovação.",
+                file=pdf_file,
+                view=approval_view
+            )
 
-            # a. Lê o conteúdo COMPLETO do stream para uma variável de bytes.
-            #    O .getvalue() pega tudo, independentemente da posição do cursor.
-            pdf_bytes = pdf_stream.getvalue()
+            # 4. Confirma ao colaborador que foi enviado para aprovação
+            await interaction.followup.send("✅ Formulário finalizado e enviado para aprovação do seu gestor! Você será notificado(a) da decisão por DM.", ephemeral=True)
 
-            # b. Formata o nome do arquivo
-            nome_colaborador = self.dados_formulario['dados_colaborador'].get('nome', 'Colaborador')
-            data_atual_str = datetime.now().strftime("%d%m%Y")
-            nome_arquivo_formatado = f"{nome_colaborador.replace(' ', '')}{data_atual_str}.pdf"
-            
-            # c. Cria um NOVO stream de memória para a DM usando os bytes.
-            pdf_stream_for_discord = io.BytesIO(pdf_bytes)
-            pdf_file_for_discord = discord.File(pdf_stream_for_discord, filename=nome_arquivo_formatado)
-
-            # d. Cria um SEGUNDO NOVO stream de memória para o e-mail, usando os mesmos bytes.
-            pdf_stream_for_email = io.BytesIO(pdf_bytes)
-            
-            # ------------------------------------
-
-            # Agora temos duas cópias independentes e o resto do fluxo funcionará.
-            view_confirmacao = ConfirmacaoEnvioEmailView(self.dados_formulario, pdf_stream_for_email)
-
-            try:
-                dm_channel = await interaction.user.create_dm()
-                await dm_channel.send(
-                    "Seu formulário está pronto. Revise o PDF e clique abaixo para enviá-lo ao RH.",
-                    file=pdf_file_for_discord,
-                    view=view_confirmacao
-                )
-                await interaction.followup.send("✅ Formulário gerado! Verifique sua DM para revisar e enviar.", ephemeral=True)
-            except discord.Forbidden:
-                await interaction.followup.send("❌ Não consegui enviar o formulário na sua DM. Verifique se você permite mensagens diretas de membros do servidor.", ephemeral=True)
-
+        except (discord.NotFound, ValueError):
+            await interaction.followup.send("❌ Erro de configuração: O ID do gestor é inválido.", ephemeral=True)
+        except discord.Forbidden:
+            await interaction.followup.send(f"❌ Não consegui enviar a DM para o gestor ({manager.name}).", ephemeral=True)
         except Exception as e:
-            logger.error(f"Erro ao gerar o PDF ou enviar para a DM: {e}", exc_info=True)
-            await interaction.followup.send("❌ Ocorreu um erro crítico ao gerar seu formulário.", ephemeral=True)
+            logger.error(f"Erro ao enviar para aprovação: {e}", exc_info=True)
+            await interaction.followup.send("❌ Ocorreu um erro crítico ao enviar seu formulário para aprovação.", ephemeral=True)
 
-
-# --- ETAPA 2: View com Menu de Seleção de Dias (COM AS MUDANÇAS PRINCIPAIS) ---
-
+# --- ETAPA 2: View com Menu de Seleção de Dias ---
 class DiasSelect(discord.ui.Select):
     def __init__(self, options: List[discord.SelectOption]):
-        super().__init__(placeholder="Selecione os dias que deseja incluir no formulário...", min_values=1, max_values=len(options), options=options)
+        super().__init__(placeholder="Selecione os dias que deseja incluir...", min_values=1, max_values=len(options), options=options)
 
     async def callback(self, interaction: discord.Interaction):
-        # --- LÓGICA ALTERADA ---
-        # Agora, o callback do menu apenas salva as escolhas na view-pai
-        # e responde à interação para que o Discord não mostre um erro.
         self.view.dias_selecionados_cache = self.values
-        await interaction.response.defer() # Apenas confirma o recebimento da seleção
+        await interaction.response.defer()
 
 class SelecaoDiasView(discord.ui.View):
     def __init__(self, id_discord: int, tipo_compensacao: str):
@@ -213,7 +168,7 @@ class SelecaoDiasView(discord.ui.View):
         self.tipo_compensacao = tipo_compensacao
         self.db_service = PortalDatabaseService()
         self.dias_detalhados_cache: List[Dict] = []
-        self.dias_selecionados_cache: List[str] = [] # Novo: para guardar as seleções
+        self.dias_selecionados_cache: List[str] = []
 
     async def preparar_view(self):
         try:
@@ -238,9 +193,8 @@ class SelecaoDiasView(discord.ui.View):
 
     @discord.ui.button(label="Confirmar Seleção", style=discord.ButtonStyle.success, emoji="✔️", row=1)
     async def confirmar_selecao(self, interaction: discord.Interaction, button: discord.ui.Button):
-        # --- LÓGICA MOVIDA PARA CÁ ---
         if not self.dias_selecionados_cache:
-            await interaction.response.send_message("❌ Você precisa selecionar pelo menos um dia no menu acima antes de confirmar.", ephemeral=True)
+            await interaction.response.send_message("❌ Você precisa selecionar pelo menos um dia no menu acima.", ephemeral=True)
             return
 
         try:
@@ -262,7 +216,6 @@ class SelecaoDiasView(discord.ui.View):
             
             await interaction.response.send_modal(FormularioJustificativaModal(dados_formulario))
             
-            # Edita a mensagem original para desabilitar os componentes após a confirmação
             for item in self.children:
                 item.disabled = True
             await interaction.edit_original_response(view=self)

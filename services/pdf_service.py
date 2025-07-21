@@ -5,7 +5,7 @@
 import io
 import os
 import logging
-from typing import Dict, List
+from typing import Dict, List, Optional
 from datetime import date, datetime, timedelta
 
 # Libs para geração de PDF
@@ -13,7 +13,7 @@ from reportlab.lib.pagesizes import A4 # Alterado de letter para A4
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, Image
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib import colors
-from reportlab.lib.units import cm # Alterado de inch para cm
+from reportlab.lib.units import cm
 
 logger = logging.getLogger(__name__)
 
@@ -84,8 +84,11 @@ def _add_rodape(canvas, doc):
         logger.error(f"Erro inesperado ao desenhar o rodapé: {e}", exc_info=True)
     canvas.restoreState()
 
-def gerar_pdf_horas_extras(dados_formulario: Dict) -> io.BytesIO:
-    """Gera o arquivo PDF com os dados completos do formulário e retorna o stream."""
+def gerar_pdf_horas_extras(dados_formulario: Dict, resp_aprovacao: Optional[Dict] = None) -> io.BytesIO:
+    """
+    Gera o arquivo PDF com os dados completos do formulário e retorna o stream.
+    Se 'horas_aprovadas' for fornecido, adiciona o bloco de assinatura eletrônica.
+    """
     file_stream = io.BytesIO()
 
     # Extrai os dados do dicionário principal, conforme a estrutura original
@@ -177,15 +180,31 @@ def gerar_pdf_horas_extras(dados_formulario: Dict) -> io.BytesIO:
     
     # Seção de Assinaturas
     current_date_str = date.today().strftime('%d / %m / %Y')
-    signatures_data = [
-        [f"DATA: {current_date_str}", f"DATA: {current_date_str}"],
-        ["\n\n____________________________", "\n\n____________________________"],
-        ["ASSINATURA DO COLABORADOR", "ASSINATURA DO RESPONSÁVEL"]
-    ]
+    
+    if resp_aprovacao:
+        # Se aprovado, substitui a linha de assinatura do responsável pelos dados da aprovação
+        approval_text = f"""
+            <b>Aprovado eletronicamente por:</b> {resp_aprovacao['name']} ({resp_aprovacao['email']})<br/>
+            <b>Data/Hora da Aprovação:</b> {resp_aprovacao['timestamp']}
+        """
+        p_approval = Paragraph(approval_text, styles['Normal'])
+        signatures_data = [
+            [f"DATA: {current_date_str}", ""],
+            ["\n\n____________________________", p_approval],
+            ["ASSINATURA DO COLABORADOR", "ASSINATURA DO RESPONSÁVEL"]
+        ]
+    else:
+        # Se ainda não foi aprovado, mantém o layout original com espaço para assinatura manual
+        signatures_data = [
+            [f"DATA: {current_date_str}", f"DATA: {current_date_str}"],
+            ["\n\n____________________________", "\n\n____________________________"],
+            ["ASSINATURA DO COLABORADOR", "ASSINATURA DO RESPONSÁVEL"]
+        ]
+    
     signatures_table = Table(signatures_data, colWidths=[doc.width/2.0, doc.width/2.0])
     signatures_table.setStyle(TableStyle([('ALIGN', (0,0), (-1,-1), 'CENTER'), ('VALIGN', (0,0), (-1,-1), 'BOTTOM')]))
     elements.append(signatures_table)
-    
+
     # Seção de Tipo de Compensação
     pagamento_text = "(X) Pagamento de Horas" if tipo_compensacao == "pagamento" else "( ) Pagamento de Horas"
     compensadas_text = "(X) Horas a serem compensadas" if tipo_compensacao == "compensacao" else "( ) Horas a serem compensadas"
