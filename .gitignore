@@ -194,3 +194,4 @@ cython_debug/
 .cursorindexingignore
 database/connecTest.py
 dados_sicom.csv
+/logs

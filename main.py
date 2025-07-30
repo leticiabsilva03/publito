@@ -2,6 +2,7 @@
 import os
 import discord
 from discord.ext import commands
+from logging_config import configure_logging
 import logging
 from dotenv import load_dotenv
 
@@ -13,14 +14,7 @@ from database.db_manager import database
 if not os.path.exists("logs"):
     os.makedirs("logs")
 
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler("logs/bot.log"),
-        logging.StreamHandler()
-    ]
-)
+configure_logging()
 logger = logging.getLogger(__name__)
 
 # --- Carregar Variáveis de Ambiente ---
