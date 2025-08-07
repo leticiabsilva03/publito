@@ -64,3 +64,47 @@ CREATE TABLE sicom.comunicados (
     data_postagem VARCHAR(15),
     data_postagem_discord TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+-- Criação das tabelas para o bot do Discord
+CREATE TABLE IF NOT EXISTS public.colaboradores (
+    discord_id BIGINT PRIMARY KEY,
+    colaborador_id INTEGER UNIQUE NOT NULL,
+    matricula VARCHAR(50),
+    data_registro TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS public.responsaveis_equipes (
+    equipe_id INTEGER PRIMARY KEY,
+    responsavel_discord_id BIGINT NOT NULL,
+    data_atualizacao TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS public.solicitacoes_horas_extras (
+    id SERIAL PRIMARY KEY,
+    solicitante_discord_id BIGINT NOT NULL,
+    responsavel_discord_id BIGINT,
+    status VARCHAR(50) NOT NULL,
+    dados_formulario JSONB,
+    data_solicitacao TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    data_decisao TIMESTAMPTZ
+);
+
+-- Adiciona a restrição de status permitidos
+ALTER TABLE public.solicitacoes_horas_extras
+ADD CONSTRAINT status_check CHECK (status IN (
+    'PENDENTE_APROVACAO_RESPONSAVEL',
+    'APROVADO',
+    'REPROVADO',
+    'CANCELADO'
+));
+
+CREATE TABLE IF NOT EXISTS public.logs_bot (
+    id SERIAL PRIMARY KEY,
+    timestamp_utc TIMESTAMPTZ NOT NULL,
+    level VARCHAR(10) NOT NULL,
+    event TEXT NOT NULL,
+    discord_user_id BIGINT,
+    command_name VARCHAR(255),
+    exception TEXT,
+    extra_data JSONB
+);

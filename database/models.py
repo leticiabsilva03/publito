@@ -1,5 +1,6 @@
 # database/models.py
 import sqlalchemy
+from sqlalchemy.dialects.postgresql import JSONB
 
 # O 'metadata' é um objeto que armazena todas as informações sobre as nossas tabelas.
 metadata = sqlalchemy.MetaData()
@@ -56,4 +57,52 @@ comunicados = sqlalchemy.Table(
     sqlalchemy.Column("data_postagem", sqlalchemy.DateTime),
     sqlalchemy.Column("data_postagem_discord", sqlalchemy.DateTime, server_default=sqlalchemy.func.now()),
     schema="sicom"
+)
+
+# --- Novas Tabelas Gerenciadas pelo Bot (Schema Public) ---
+
+colaboradores = sqlalchemy.Table(
+    "colaboradores",
+    metadata,
+    sqlalchemy.Column("discord_id", sqlalchemy.BigInteger, primary_key=True),
+    sqlalchemy.Column("colaborador_id", sqlalchemy.Integer, nullable=False, unique=True),
+    sqlalchemy.Column("matricula", sqlalchemy.String(50)),
+    sqlalchemy.Column("data_registro", sqlalchemy.DateTime(timezone=True), server_default=sqlalchemy.func.now()),
+    schema="public"
+)
+
+responsaveis_equipes = sqlalchemy.Table(
+    "responsaveis_equipes",
+    metadata,
+    sqlalchemy.Column("equipe_id", sqlalchemy.Integer, primary_key=True),
+    sqlalchemy.Column("responsavel_discord_id", sqlalchemy.BigInteger, nullable=False),
+    sqlalchemy.Column("data_atualizacao", sqlalchemy.DateTime(timezone=True), server_default=sqlalchemy.func.now()),
+    schema="public"
+)
+
+solicitacoes_horas_extras = sqlalchemy.Table(
+    "solicitacoes_horas_extras",
+    metadata,
+    sqlalchemy.Column("id", sqlalchemy.Integer, primary_key=True),
+    sqlalchemy.Column("solicitante_discord_id", sqlalchemy.BigInteger, nullable=False),
+    sqlalchemy.Column("responsavel_discord_id", sqlalchemy.BigInteger),
+    sqlalchemy.Column("status", sqlalchemy.String(50), nullable=False),
+    sqlalchemy.Column("dados_formulario", JSONB), # Usando o tipo JSONB importado
+    sqlalchemy.Column("data_solicitacao", sqlalchemy.DateTime(timezone=True), server_default=sqlalchemy.func.now()),
+    sqlalchemy.Column("data_decisao", sqlalchemy.DateTime(timezone=True)),
+    schema="public"
+)
+
+logs_bot = sqlalchemy.Table(
+    "logs_bot",
+    metadata,
+    sqlalchemy.Column("id", sqlalchemy.Integer, primary_key=True),
+    sqlalchemy.Column("timestamp_utc", sqlalchemy.DateTime(timezone=True), nullable=False),
+    sqlalchemy.Column("level", sqlalchemy.String(10), nullable=False),
+    sqlalchemy.Column("event", sqlalchemy.Text, nullable=False),
+    sqlalchemy.Column("discord_user_id", sqlalchemy.BigInteger),
+    sqlalchemy.Column("command_name", sqlalchemy.String(255)),
+    sqlalchemy.Column("exception", sqlalchemy.Text),
+    sqlalchemy.Column("extra_data", JSONB),
+    schema="public"
 )
