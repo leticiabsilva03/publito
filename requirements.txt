@@ -10,3 +10,4 @@ reportlab
 httpx
 beautifulsoup4
 pyodbc  
+pypdf
