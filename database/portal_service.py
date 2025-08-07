@@ -5,6 +5,7 @@ import logging
 from typing import List, Dict, Optional
 from datetime import datetime, timedelta
 from collections import defaultdict
+from .bot_queries import buscar_responsavel_por_equipe
 
 logger = logging.getLogger(__name__)
 
@@ -35,12 +36,87 @@ class PortalDatabaseService:
         if self.connection:
             self.connection.close()
 
-    def buscar_dados_colaborador(self, id_discord: int) -> Optional[Dict]:
-        """Busca os dados cadastrais de um colaborador e adiciona um nome de responsável fixo."""
+    # --- FUNÇÃO ORQUESTRADORA PRINCIPAL ---
+    async def buscar_dados_completos_colaborador(self, id_discord: int) -> Optional[Dict]:
+        """
+        Orquestra a busca de dados: primeiro no DB corporativo, depois enriquece
+        com os dados de responsável do banco de dados do bot (PostgreSQL).
+        """
+        logger.info(f"Buscando dados completos para o discord_id: {id_discord}")
+
+        # 1. Busca os dados primários do colaborador no banco corporativo
+        dados_colaborador = self.buscar_dados_colaborador_por_discord_id(id_discord)
+
+        if not dados_colaborador:
+            logger.warning(f"Nenhum colaborador encontrado no DB corporativo para o discord_id: {id_discord}")
+            return None
+
+        # Adiciona placeholders para os dados do responsável
+        dados_colaborador['nome_responsavel'] = "Não definido"
+        dados_colaborador['responsavel_id_discord'] = None
+        
+        id_equipe = dados_colaborador.get('id_equipe')
+        
+        # 2. Se o colaborador tem uma equipe, busca o responsável no banco de dados do BOT
+        if id_equipe:
+            logger.info(f"Colaborador pertence à equipe {id_equipe}. Buscando responsável no DB do bot.")
+            
+            # Converte o id_equipe para um inteiro antes de passar para a função
+            dados_map_responsavel = await buscar_responsavel_por_equipe(int(id_equipe))
+            
+            if dados_map_responsavel:
+                id_discord_resp = dados_map_responsavel['responsavel_discord_id']
+                logger.info(f"Responsável encontrado no DB do bot com discord_id: {id_discord_resp}. Buscando nome...")
+                
+                # 3. Com o ID do responsável, busca o NOME dele no banco corporativo
+                info_responsavel = self.buscar_dados_colaborador_por_discord_id(id_discord_resp)
+                
+                if info_responsavel:
+                    dados_colaborador['nome_responsavel'] = info_responsavel.get('nome')
+                    dados_colaborador['responsavel_id_discord'] = id_discord_resp
+                    logger.info(f"Nome do responsável '{info_responsavel.get('nome')}' encontrado e adicionado.")
+                else:
+                    logger.warning(f"O ID Discord do responsável ({id_discord_resp}) foi encontrado no mapeamento, mas não há um colaborador correspondente no DB corporativo.")
+            else:
+                logger.info(f"Nenhum responsável mapeado para a equipe {id_equipe} no DB do bot.")
+        else:
+            logger.info("Colaborador não está associado a nenhuma equipe.")
+
+        return dados_colaborador
+    
+    def buscar_todas_equipes(self) -> List[Dict]:
+        """Busca todas as equipes ativas do banco de dados corporativo."""
+        query = "SELECT id, descricao FROM PortalCorporativo.portalrh.equipe ORDER BY descricao"
+        try:
+            self._conectar()
+            cursor = self.connection.cursor()
+            cursor.execute(query)
+            columns = [column[0] for column in cursor.description]
+            return [dict(zip(columns, row)) for row in cursor.fetchall()]
+        finally:
+            self._fechar_conexao()
+
+    def buscar_equipes_autocomplete(self, search_term: str) -> List[Dict]:
+        """Busca equipes no banco de dados para a função de autocomplete."""
+        query = "SELECT id, descricao FROM PortalCorporativo.portalrh.equipe WHERE descricao LIKE ? ORDER BY descricao"
+        try:
+            self._conectar()
+            cursor = self.connection.cursor()
+            cursor.execute(query, f"%{search_term}%")
+            columns = [column[0] for column in cursor.description]
+            return [dict(zip(columns, row)) for row in cursor.fetchall()]
+        finally:
+            self._fechar_conexao()
+
+    # --- FUNÇÕES DE CONSULTA AO BANCO CORPORATIVO ---
+
+    def buscar_dados_colaborador_por_discord_id(self, id_discord: int) -> Optional[Dict]:
+        """Busca os dados básicos de um colaborador pelo seu ID do Discord."""
         query = """
         SELECT
-            c.nome, c.email, car.descricao as nome_cargo, dep.descricao as nome_departamento,
-            'Calisson André Soares' as nome_responsavel
+            c.id as colaborador_id, c.nome, c.email, c.id_discord, c.matricula, c.id_equipe,
+            car.descricao as nome_cargo,
+            dep.descricao as nome_departamento
         FROM PortalCorporativo.portalrh.colaborador as c
         LEFT JOIN PortalCorporativo.portalrh.cargo as car ON c.id_cargo = car.id
         LEFT JOIN PortalCorporativo.portalrh.equipe as eq ON c.id_equipe = eq.id
@@ -63,7 +139,7 @@ class PortalDatabaseService:
         para calcular o total trabalhado e as horas extras por dia.
         """
         data_fim = datetime.now()
-        data_inicio = data_fim - timedelta(days=7)
+        data_inicio = data_fim - timedelta(days=25)
 
         query = """
         SELECT pm.data, pm.hora
