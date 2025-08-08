@@ -10,7 +10,7 @@ from decimal import Decimal
 
 # Importando os serviços e queries
 from database.portal_service import PortalDatabaseService
-from services.pdf_service import gerar_pdf_horas_extras, assinar_pdf
+from services.pdf_service import gerar_pdf_horas_extras
 from services.email_service import enviar_email_com_anexo
 from database.bot_queries import (
     criar_solicitacao, 
@@ -74,8 +74,12 @@ class AprovacaoResponsavelView(discord.ui.View):
             "data_hora": datetime.now().strftime('%d/%m/%Y às %H:%M:%S')
         }
         
+        dados_para_assinar = dict(self.dados_formulario)  # shallow copy
+        dados_para_assinar["dados_aprovador"] = dados_aprovador
+
+
         loop = asyncio.get_running_loop()
-        pdf_assinado_stream = await loop.run_in_executor(None, assinar_pdf, self.pdf_original_stream, dados_aprovador)
+        pdf_assinado_stream = await loop.run_in_executor(None, gerar_pdf_horas_extras, dados_para_assinar)
         success = await loop.run_in_executor(None, enviar_email_com_anexo, self.dados_formulario, pdf_assinado_stream)
 
         await atualizar_status_solicitacao(self.solicitacao_id, 'APROVADO', interaction.user.id)
