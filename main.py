@@ -49,7 +49,8 @@ class MyBot(commands.Bot):
             'cogs.rh_commands',
             'cogs.error_handler',
             'cogs.gerenciamento_commands',
-            'cogs.comunicados_task'
+            'cogs.comunicados_task',
+            'cogs.ajuda_commands',
         ]
         for cog in cogs_to_load:
             try:
