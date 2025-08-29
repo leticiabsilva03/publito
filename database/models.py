@@ -67,6 +67,7 @@ colaboradores = sqlalchemy.Table(
     sqlalchemy.Column("discord_id", sqlalchemy.BigInteger, primary_key=True),
     sqlalchemy.Column("colaborador_id", sqlalchemy.Integer, nullable=False, unique=True),
     sqlalchemy.Column("matricula", sqlalchemy.String(50)),
+    sqlalchemy.Column("nome", sqlalchemy.String(255), nullable=False),
     sqlalchemy.Column("data_registro", sqlalchemy.DateTime(timezone=True), server_default=sqlalchemy.func.now()),
     schema="public"
 )

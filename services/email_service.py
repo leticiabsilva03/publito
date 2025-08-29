@@ -50,7 +50,7 @@ def enviar_email_com_anexo(dados_formulario: Dict, pdf_stream: io.BytesIO) -> bo
             f"{dados_formulario['justificativa']}\n"
             f"-------------------------------------\n\n"
             f"Atenciosamente,\n"
-            f"Bot de Automação Publito"
+            f"Publito Bot"
         )
         msg.attach(MIMEText(body, 'plain', 'utf-8'))
 
