@@ -95,6 +95,7 @@ def gerar_pdf_horas_extras(dados_formulario: Dict) -> io.BytesIO:
     styles.add(ParagraphStyle(name='CenterH2', alignment=1, parent=styles['h2'], fontName='Helvetica-Bold'))
     styles.add(ParagraphStyle(name='h2_custom', parent=styles['h2'], fontName='Helvetica-Bold', spaceAfter=6))
     styles.add(ParagraphStyle(name='CenterText', alignment=1, parent=styles['Normal']))
+    styles.add(ParagraphStyle(name='SignatureStyle', parent=styles['Normal'], fontSize=8, leading=10))
 
     elements = []
 
@@ -168,21 +169,10 @@ def gerar_pdf_horas_extras(dados_formulario: Dict) -> io.BytesIO:
 
     # Assinaturas padrão
     current_date_str = date.today().strftime('%d / %m / %Y')
-    signatures_data = [
-        [f"DATA: {current_date_str}", f"DATA: {current_date_str}"],
-        ["\n\n____________________________", "\n\n____________________________"],
-        ["ASSINATURA DO COLABORADOR", "ASSINATURA DO RESPONSÁVEL"]
-    ]
-    signatures_table = Table(signatures_data, colWidths=[doc.width/2.0, doc.width/2.0])
-    signatures_table.setStyle(TableStyle([
-        ('ALIGN', (0,0), (-1,-1), 'CENTER'),
-        ('VALIGN', (0,0), (-1,-1), 'BOTTOM')
-    ]))
-    elements.append(signatures_table)
+    elements.append(Paragraph(f"Data de geração: {current_date_str}", styles['SignatureStyle']))
 
     # Assinatura digital (se houver)
     if dados_aprovador:
-        styles.add(ParagraphStyle(name='SignatureStyle', parent=styles['Normal'], fontSize=8, leading=10))
         assinatura_data = [
             [Paragraph(f"<b>Aprovado Digitalmente por:</b> {dados_aprovador['nome']}", styles['SignatureStyle'])],
             [Paragraph(f"<b>ID Discord:</b> {dados_aprovador['id_discord']}", styles['SignatureStyle'])],

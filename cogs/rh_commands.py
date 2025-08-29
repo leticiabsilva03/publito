@@ -4,7 +4,10 @@ from discord import app_commands
 from discord.ext import commands
 import logging
 from views.rh_view import BotoesSelecaoTipoView
-from database.portal_service import PortalDatabaseService
+from services.portal_service import PortalDatabaseService
+from database import bot_queries
+
+from cogs.registrar_commands import RegistroColaboradorModal
 
 logger = logging.getLogger(__name__)
 
@@ -17,32 +20,43 @@ class RHCommands(commands.Cog):
     async def bancohoras(self, interaction: discord.Interaction):
         """Verifica o registro e busca os dados completos do colaborador antes de iniciar o fluxo."""
 
-        # Deferimos a resposta para evitar timeout
-        await interaction.response.defer(ephemeral=True)
-
         try:
-            dados_completos_colaborador = await self.portal_db.buscar_dados_completos_colaborador(interaction.user.id)
+            # 1️⃣ Verifica se já está registrado no banco do bot
+            colaborador_check = await bot_queries.buscar_colaborador_mapeado(interaction.user.id)
 
-            if not dados_completos_colaborador:
-                embed = discord.Embed(
-                    title="⚠️ Registro Necessário",
-                    description="Sua conta do Discord não está vinculada a um cadastro. Por favor, use o comando `/registrar`.",
-                    color=discord.Color.orange()
-                )
-                await interaction.followup.send(embed=embed, ephemeral=True)
+            if not colaborador_check:
+                # 2️⃣ Usuário não registrado → abre modal diretamente (sem defer!)
+                modal = RegistroColaboradorModal(user=interaction.user)
+                await interaction.response.send_modal(modal)
                 return
 
-            view = BotoesSelecaoTipoView(dados_colaborador=dados_completos_colaborador)
+            colaborador = await self.portal_db.buscar_dados_completos_colaborador(interaction.user.id)
+
+            # 3️⃣ Usuário já registrado → pode defer e continuar fluxo
+            await interaction.response.defer(ephemeral=True)
+
+            embed = discord.Embed(
+                title="📊 Banco de Horas",
+                description=f"Registro de horas para {interaction.user.mention}",
+                color=discord.Color.blue()
+            )
+
+            view = BotoesSelecaoTipoView(dados_colaborador=colaborador)
             await interaction.followup.send(
-                f"Olá, {dados_completos_colaborador['nome']}! Selecione a modalidade das horas extras:",
+                f"Olá, {colaborador['nome']}! Selecione a modalidade das horas extras:",
                 view=view,
                 ephemeral=True
             )
 
         except Exception as e:
             logger.error(f"Erro ao iniciar o comando /bancohoras: {e}", exc_info=True)
-            # Como já deferimos, usamos followup para enviar a mensagem de erro
-            await interaction.followup.send("❌ Ocorreu um erro.", ephemeral=True)
+
+            # 🔑 Só responde erro se a interaction ainda não foi respondida
+            if interaction.response.is_done():
+                await interaction.followup.send("❌ Ocorreu um erro ao final da interação.", ephemeral=True)
+            else:
+                await interaction.response.send_message("❌ Ocorreu um erro durante a interação.", ephemeral=True)
+
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(RHCommands(bot))

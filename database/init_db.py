@@ -1,4 +1,4 @@
-"""Initializes the database schema for the Publito application."""
+"""Inicializa o banco de daddos executando o script de criação do schema do Publito Bot."""
 
 import os
 import asyncio

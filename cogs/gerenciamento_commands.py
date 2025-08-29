@@ -4,7 +4,7 @@ from discord import app_commands
 from discord.ext import commands
 import logging
 from typing import List
-from database.portal_service import PortalDatabaseService
+from services.portal_service import PortalDatabaseService
 from database.bot_queries import definir_responsavel, remover_responsavel, listar_todos_responsaveis
 
 logger = logging.getLogger(__name__)

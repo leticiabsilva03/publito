@@ -70,6 +70,7 @@ CREATE TABLE IF NOT EXISTS public.colaboradores (
     discord_id BIGINT PRIMARY KEY,
     colaborador_id INTEGER UNIQUE NOT NULL,
     matricula VARCHAR(50),
+    nome VARCHAR(100) NOT NULL,
     data_registro TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
