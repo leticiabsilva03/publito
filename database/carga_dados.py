@@ -23,10 +23,8 @@ async def seed_database():
     
     try:
         # --- PASSO 1: LER E PREPARAR OS DADOS DO CSV ---
-        logging.info("Lendo o ficheiro dados_sicom.csv...")
-        # Lê o ficheiro CSV usando o ponto e vírgula como separador
+        logging.info("Lendo o ficheiro dados_sicom.csv...")        
         df = pd.read_csv('dados_sicom.csv', sep=';', dtype=str)
-        # Substitui valores vazios (NaN) por None, que é o equivalente a NULL no banco
         df = df.where(pd.notna(df), None)
         logging.info(f"{len(df)} linhas lidas do CSV.")
 
@@ -34,10 +32,9 @@ async def seed_database():
         
         # 2.1 - Administrações
         logging.info("Populando a tabela 'administracoes'...")
-        # Pega os valores únicos de sigla e descrição
         admins_unicas = df[['sigla_administracao', 'des_administracao']].drop_duplicates().to_dict('records')
         # Cria uma query de INSERT. O 'on_conflict_do_nothing' garante que, se uma sigla já existir,
-        # a query não falhe, apenas ignora a inserção (ótimo para re-execuções).
+        # a query não falhe, apenas ignora a inserção.
         admin_insert_query = insert(administracoes).values(admins_unicas).on_conflict_do_nothing(
             index_elements=['sigla_administracao']
         )
@@ -46,7 +43,6 @@ async def seed_database():
 
         # 2.2 - Municípios
         logging.info("Populando a tabela 'municipios'...")
-        # Limpa e formata os nomes dos municípios antes de inserir
         df['nom_municipio_tratado'] = df['nom_municipio'].apply(lambda x: unidecode.unidecode(x).title() if pd.notna(x) else None)
         
         municipios_unicos = df[['nom_municipio_tratado', 'cnpj_municipio']].drop_duplicates()
@@ -60,18 +56,16 @@ async def seed_database():
         
         # --- PASSO 3: BUSCAR OS IDs CRIADOS PARA MAPEAMENTO ---
         logging.info("Mapeando IDs das tabelas mestras...")
-        # Busca todos os municípios e administrações que agora existem no banco
         db_municipios = await database.fetch_all(select(municipios.c.cod_municipio, municipios.c.nom_municipio))
         db_admins = await database.fetch_all(select(administracoes.c.cod_administracao, administracoes.c.sigla_administracao))
         
         # Cria dicionários de mapeamento para encontrar os IDs facilmente
-        # Ex: {'Sao Paulo': 1, 'Recife': 2}
         municipio_map = {mun['nom_municipio']: mun['cod_municipio'] for mun in db_municipios}
         admin_map = {adm['sigla_administracao']: adm['cod_administracao'] for adm in db_admins}
 
-        # --- PASSO 4: POPULAR A TABELA DE JUNÇÃO (MUNICIPIOS_ADMINISTRACOES) ---
+        # --- PASSO 4: POPULAR A TABELA JOIN (MUNICIPIOS_ADMINISTRACOES) ---
         logging.info("Populando a tabela de junção 'municipios_administracoes'...")
-        # Cria uma lista de dicionários com os pares de IDs de município e administração
+
         links_para_inserir = []
         for index, row in df.iterrows():
             cod_mun = municipio_map.get(row['nom_municipio_tratado'])
@@ -98,7 +92,7 @@ async def seed_database():
         # --- PASSO 6: FINALMENTE, POPULAR A TABELA DE CREDENCIAIS ---
         logging.info("Populando a tabela 'credenciais'...")
         credenciais_para_inserir = []
-        for index, row in df.iterrows():
+        for _, row in df.iterrows():
             cod_mun = municipio_map.get(row['nom_municipio_tratado'])
             cod_adm = admin_map.get(row['sigla_administracao'])
             
@@ -118,13 +112,11 @@ async def seed_database():
                 })
 
         if credenciais_para_inserir:
-            # Não usamos 'on_conflict' aqui porque cada linha do CSV deve ser uma credencial única
             await database.execute_many(query=insert(credenciais), values=credenciais_para_inserir)
         
         logging.info(f"Tabela 'credenciais' populada com sucesso! {len(credenciais_para_inserir)} credenciais inseridas.")
 
     finally:
-        # Garante que a conexão com o banco seja fechada ao final da operação
         await database.disconnect()
         logging.info("Conexão com o banco de dados fechada.")
 

@@ -5,7 +5,7 @@ import logging
 from typing import List, Dict, Optional
 from datetime import datetime, timedelta
 from collections import defaultdict
-from .bot_queries import buscar_responsavel_por_equipe
+from database.bot_queries import buscar_responsavel_por_equipe
 
 logger = logging.getLogger(__name__)
 
@@ -36,7 +36,45 @@ class PortalDatabaseService:
         if self.connection:
             self.connection.close()
 
-    # --- FUNÇÃO ORQUESTRADORA PRINCIPAL ---
+    # ==========================================================
+    # 🔎 NOVO MÉTODO — Buscar colaborador por CPF
+    # ==========================================================
+    def buscar_colaborador_por_cpf(self, cpf: str) -> Optional[Dict]:
+        """
+        Busca um colaborador ativo no banco de dados corporativo pelo CPF.
+        Retorna dict com id, nome, matricula e id_equipe se encontrado.
+        """
+        query = """
+        SELECT 
+            c.id AS colaborador_id,
+            c.nome,
+            c.matricula,
+            c.id_equipe
+        FROM PortalCorporativo.portalrh.colaborador AS c
+        WHERE c.cpf = ? AND c.desligamento_data IS NULL;
+        """
+        try:
+            self._conectar()
+            cursor = self.connection.cursor()
+            cursor.execute(query, (cpf,))
+            row = cursor.fetchone()
+            if row:
+                return {
+                    "colaborador_id": row.colaborador_id,
+                    "nome": row.nome,
+                    "matricula": row.matricula,
+                    "id_equipe": row.id_equipe,
+                }
+            return None
+        except Exception as e:
+            logger.error(f"Erro ao buscar colaborador por CPF {cpf}: {e}", exc_info=True)
+            return None
+        finally:
+            self._fechar_conexao()
+
+    # ==========================================================
+    # 🔎 ORQUESTRADOR
+    # ==========================================================
     async def buscar_dados_completos_colaborador(self, id_discord: int) -> Optional[Dict]:
         """
         Orquestra a busca de dados: primeiro no DB corporativo, depois enriquece
@@ -61,14 +99,12 @@ class PortalDatabaseService:
         if id_equipe:
             logger.info(f"Colaborador pertence à equipe {id_equipe}. Buscando responsável no DB do bot.")
             
-            # Converte o id_equipe para um inteiro antes de passar para a função
             dados_map_responsavel = await buscar_responsavel_por_equipe(int(id_equipe))
             
             if dados_map_responsavel:
                 id_discord_resp = dados_map_responsavel['responsavel_discord_id']
                 logger.info(f"Responsável encontrado no DB do bot com discord_id: {id_discord_resp}. Buscando nome...")
                 
-                # 3. Com o ID do responsável, busca o NOME dele no banco corporativo
                 info_responsavel = self.buscar_dados_colaborador_por_discord_id(id_discord_resp)
                 
                 if info_responsavel:
@@ -84,6 +120,9 @@ class PortalDatabaseService:
 
         return dados_colaborador
     
+    # ==========================================================
+    # 🔎 EQUIPES
+    # ==========================================================
     def buscar_todas_equipes(self) -> List[Dict]:
         """Busca todas as equipes ativas do banco de dados corporativo."""
         query = "SELECT id, descricao FROM PortalCorporativo.portalrh.equipe ORDER BY descricao"
@@ -108,8 +147,9 @@ class PortalDatabaseService:
         finally:
             self._fechar_conexao()
 
-    # --- FUNÇÕES DE CONSULTA AO BANCO CORPORATIVO ---
-
+    # ==========================================================
+    # 🔎 COLABORADOR POR DISCORD
+    # ==========================================================
     def buscar_dados_colaborador_por_discord_id(self, id_discord: int) -> Optional[Dict]:
         """Busca os dados básicos de um colaborador pelo seu ID do Discord."""
         query = """
@@ -133,9 +173,12 @@ class PortalDatabaseService:
         finally:
             self._fechar_conexao()
 
+    # ==========================================================
+    # 🔎 PONTO
+    # ==========================================================
     def buscar_detalhes_ponto_recente(self, id_discord: int) -> List[Dict]:
         """
-        Busca todas as batidas de ponto dos últimos 7 dias e processa os dados
+        Busca todas as batidas de ponto dos últimos dias e processa os dados
         para calcular o total trabalhado e as horas extras por dia.
         """
         data_fim = datetime.now()
@@ -145,7 +188,7 @@ class PortalDatabaseService:
         SELECT pm.data, pm.hora
         FROM PortalCorporativo.portalrh.ponto_marcacao as pm
         JOIN PortalCorporativo.portalrh.colaborador as c ON pm.pis = c.pis_numero
-        WHERE c.id_discord = ? AND pm.data BETWEEN ? AND ?
+        WHERE c.id_discord = ? AND pm.data BETWEEN ? AND ? and ISNULL(pm.justificativa,'') <> 'EXC'
         ORDER BY pm.data, pm.hora;
         """
         marcacoes_por_dia = defaultdict(list)
@@ -160,7 +203,6 @@ class PortalDatabaseService:
 
         dias_detalhados = []
         for dia, batidas in marcacoes_por_dia.items():
-            # Garante que temos um número par de batidas para calcular os períodos
             if len(batidas) % 2 != 0:
                 logger.warning(f"Dia {dia} para id_discord {id_discord} tem um número ímpar de batidas. Ignorando.")
                 continue
@@ -174,7 +216,6 @@ class PortalDatabaseService:
             jornada_padrao = timedelta(hours=8)
             horas_extras = total_trabalhado - jornada_padrao if total_trabalhado > jornada_padrao else timedelta(0)
 
-            # Só mostra dias que tiveram horas extras
             if horas_extras > timedelta(0):
                 dias_detalhados.append({
                     "data": dia,

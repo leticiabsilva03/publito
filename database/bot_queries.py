@@ -49,15 +49,29 @@ async def listar_todos_responsaveis() -> List[Dict]:
 async def buscar_colaborador_mapeado(discord_id: int) -> Optional[Dict]:
     """Busca um mapeamento de colaborador pelo ID do Discord na tabela do bot."""
     query = select(colaboradores).where(colaboradores.c.discord_id == discord_id)
-    return await database.fetch_one(query)
+    row = await database.fetch_one(query)
+    try:
+        if row:
+            return {
+                "discord_id": row.discord_id,
+                "colaborador_id": row.colaborador_id,
+                "nome": row.nome,
+                "matricula": row.matricula
+                #"id_equipe": row.id_equipe,
+            }
+        return None
+    except Exception as e:
+        logger.error(f"Erro ao buscar colaborador mapeado {discord_id}: {e}", exc_info=True)
+        return None
 
-async def salvar_mapeamento(discord_id: int, colaborador_id: int, matricula: str) -> bool:
+async def salvar_mapeamento(discord_id: int, colaborador_id: int, matricula: str, nome: str) -> bool:
     """Cria ou ignora um mapeamento de usuário (INSERT ... ON CONFLICT)."""
     try:
         stmt = pg_insert(colaboradores).values(
             discord_id=discord_id,
             colaborador_id=colaborador_id,
-            matricula=matricula
+            matricula=str(matricula),
+            nome = nome
         ).on_conflict_do_nothing(index_elements=['discord_id'])
         await database.execute(stmt)
         return True

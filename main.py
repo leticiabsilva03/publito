@@ -51,6 +51,7 @@ class MyBot(commands.Bot):
             'cogs.gerenciamento_commands',
             'cogs.comunicados_task',
             'cogs.ajuda_commands',
+            'cogs.registrar_commands',
         ]
         for cog in cogs_to_load:
             try:
