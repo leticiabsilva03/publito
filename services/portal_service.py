@@ -182,7 +182,7 @@ class PortalDatabaseService:
         para calcular o total trabalhado e as horas extras por dia.
         """
         data_fim = datetime.now()
-        data_inicio = data_fim - timedelta(days=25)
+        data_inicio = data_fim - timedelta(days=35)
 
         query = """
         SELECT pm.data, pm.hora

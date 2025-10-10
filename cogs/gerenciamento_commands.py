@@ -22,7 +22,7 @@ class GerenciamentoCommands(commands.Cog):
     # === COMANDOS DE ADMIN ===
     @app_commands.command(name="definir-responsavel", description="[Admin] Define o responsável por uma equipe.")
     @app_commands.autocomplete(equipe=equipe_autocomplete)
-    @app_commands.checks.has_role("ADM") # <-- Defina o cargo de admin aqui
+    # @app_commands.checks.has_role("ADM") # <-- Defina o cargo de admin aqui
     async def definir_responsavel(self, interaction: discord.Interaction, equipe: str, responsavel: discord.Member):
         equipe_id = int(equipe)
         success = await definir_responsavel(equipe_id, responsavel.id)
@@ -33,7 +33,7 @@ class GerenciamentoCommands(commands.Cog):
 
     @app_commands.command(name="remover-responsavel", description="[Admin] Remove o responsável de uma equipe.")
     @app_commands.autocomplete(equipe=equipe_autocomplete)
-    @app_commands.checks.has_role("ADM")
+    # @app_commands.checks.has_role("ADM")
     async def remover_responsavel(self, interaction: discord.Interaction, equipe: str):
         equipe_id = int(equipe)
         success = await remover_responsavel(equipe_id)
@@ -43,7 +43,7 @@ class GerenciamentoCommands(commands.Cog):
             await interaction.response.send_message("❌ Erro ao remover responsável.", ephemeral=True)
 
     @app_commands.command(name="listar-responsaveis", description="[Admin] Lista equipes com e sem responsável definido.")
-    @app_commands.checks.has_role("ADM")
+    # @app_commands.checks.has_role("ADM")
     async def listar_responsaveis(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
         

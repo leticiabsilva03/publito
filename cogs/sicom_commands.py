@@ -76,7 +76,7 @@ class SicomCommands(commands.Cog):
 
     # --- COMANDO /atualizasicom ---
     @app_commands.command(name="atualizasicom", description="Atualiza as credenciais de uma entidade.")
-    @app_commands.checks.has_role("Administrador SICOM")
+    # @app_commands.checks.has_role("Administrador SICOM")
     @app_commands.autocomplete(municipio=municipio_autocomplete, administracao=administracao_autocomplete)
     @app_commands.describe(
         municipio="O município da credencial a ser atualizada.",
@@ -118,7 +118,7 @@ class SicomCommands(commands.Cog):
 
     # --- COMANDO /registramunicipio ---
     @app_commands.command(name="registramunicipio", description="Registra um novo município no sistema.")
-    @app_commands.checks.has_role("Administrador SICOM") # Protegido pelo cargo
+    # @app_commands.checks.has_role("Administrador SICOM") # Protegido pelo cargo
     @app_commands.describe(
         nome="O nome oficial do município (sem números ou caracteres especiais).",
         cnpj="O CNPJ do município (apenas 14 dígitos numéricos)."
@@ -157,7 +157,7 @@ class SicomCommands(commands.Cog):
 
     # --- COMANDO /registrasicom ---
     @app_commands.command(name="registrasicom", description="Registra uma nova credencial no sistema.")
-    @app_commands.checks.has_role("Administrador SICOM") # Protegido pelo cargo
+   #  @app_commands.checks.has_role("Administrador SICOM") # Protegido pelo cargo
     @app_commands.autocomplete(municipio=municipio_autocomplete, administracao=administracao_autocomplete)
     @app_commands.describe(
         municipio="O município ao qual a credencial pertence.",
