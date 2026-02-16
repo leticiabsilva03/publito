@@ -21,18 +21,18 @@ class RHCommands(commands.Cog):
         """Verifica o registro e busca os dados completos do colaborador antes de iniciar o fluxo."""
 
         try:
-            # 1️⃣ Verifica se já está registrado no banco do bot
+            # Verifica se já está registrado no banco do bot
             colaborador_check = await bot_queries.buscar_colaborador_mapeado(interaction.user.id)
 
             if not colaborador_check:
-                # 2️⃣ Usuário não registrado → abre modal diretamente (sem defer!)
+                # Usuário não registrado → abre modal diretamente
                 modal = RegistroColaboradorModal(user=interaction.user)
                 await interaction.response.send_modal(modal)
                 return
 
             colaborador = await self.portal_db.buscar_dados_completos_colaborador(interaction.user.id)
 
-            # 3️⃣ Usuário já registrado → pode defer e continuar fluxo
+            # Usuário já registrado segue esse fluxo
             await interaction.response.defer(ephemeral=True)
 
             embed = discord.Embed(
@@ -51,7 +51,7 @@ class RHCommands(commands.Cog):
         except Exception as e:
             logger.error(f"Erro ao iniciar o comando /bancohoras: {e}", exc_info=True)
 
-            # 🔑 Só responde erro se a interaction ainda não foi respondida
+            # Só responde erro se a interaction ainda não foi respondida
             if interaction.response.is_done():
                 await interaction.followup.send("❌ Ocorreu um erro ao final da interação.", ephemeral=True)
             else:

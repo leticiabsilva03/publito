@@ -30,7 +30,7 @@ def enviar_email_com_anexo(dados_formulario: Dict, pdf_stream: io.BytesIO) -> bo
 
         # --- Monta a lista de destinatários ---
         email_colaborador = dados_colaborador.get("email")
-        destinatarios: List[str] = [email_rh]
+        destinatarios: List[str] = [email_rh] #TODO: Verificar uso do e-mail corporativo
         if email_colaborador:
             destinatarios.append(email_colaborador)
         else:

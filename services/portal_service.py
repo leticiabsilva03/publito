@@ -188,7 +188,7 @@ class PortalDatabaseService:
         SELECT pm.data, pm.hora
         FROM PortalCorporativo.portalrh.ponto_marcacao as pm
         JOIN PortalCorporativo.portalrh.colaborador as c ON pm.pis = c.pis_numero
-        WHERE c.id_discord = ? AND pm.data BETWEEN ? AND ? and ISNULL(pm.justificativa,'') <> 'EXC'
+        WHERE c.id_discord = ? AND pm.data BETWEEN ? AND ? and ISNULL(pm.flag,'') <> 'EXC'
         ORDER BY pm.data, pm.hora;
         """
         marcacoes_por_dia = defaultdict(list)
@@ -214,9 +214,13 @@ class PortalDatabaseService:
                 total_trabalhado += (saida - entrada)
             
             jornada_padrao = timedelta(hours=8)
-            horas_extras = total_trabalhado - jornada_padrao if total_trabalhado > jornada_padrao else timedelta(0)
+            if(dia.weekday() == 5 or dia.weekday() == 6):  # Sábado ou Domingo
+                horas_extras = total_trabalhado
+            else:
+                horas_extras = total_trabalhado - jornada_padrao if total_trabalhado > jornada_padrao else timedelta(0)
 
-            if horas_extras > timedelta(0):
+            # Armazena apenas dias com horas extras significativas (>10 minutos)
+            if horas_extras > timedelta(minutes=10):
                 dias_detalhados.append({
                     "data": dia,
                     "batidas_str": " - ".join([t.strftime('%H:%M') for t in batidas]),
