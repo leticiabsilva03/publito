@@ -17,7 +17,7 @@ async def fetch_municipio_autocomplete(search_term: str) -> List[Dict]:
     try:
         query = (
             select(municipios.c.cod_municipio, municipios.c.nom_municipio)
-            .where(municipios.c.nom_municipio.ilike(f"%{search_term}%"))
+            .where(municipios.c.nom_municipio.like(f"%{search_term}%"))
             .limit(25)
             .order_by(municipios.c.nom_municipio)
         )

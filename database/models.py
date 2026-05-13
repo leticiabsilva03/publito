@@ -69,7 +69,7 @@ colaboradores = sqlalchemy.Table(
     sqlalchemy.Column("matricula", sqlalchemy.String(50)),
     sqlalchemy.Column("nome", sqlalchemy.String(255), nullable=False),
     sqlalchemy.Column("data_registro", sqlalchemy.DateTime(timezone=True), server_default=sqlalchemy.func.now()),
-    schema="public"
+    schema="dbo"
 )
 
 responsaveis_equipes = sqlalchemy.Table(
@@ -78,7 +78,7 @@ responsaveis_equipes = sqlalchemy.Table(
     sqlalchemy.Column("equipe_id", sqlalchemy.Integer, primary_key=True),
     sqlalchemy.Column("responsavel_discord_id", sqlalchemy.BigInteger, nullable=False),
     sqlalchemy.Column("data_atualizacao", sqlalchemy.DateTime(timezone=True), server_default=sqlalchemy.func.now()),
-    schema="public"
+    schema="dbo"
 )
 
 solicitacoes_horas_extras = sqlalchemy.Table(
@@ -91,7 +91,7 @@ solicitacoes_horas_extras = sqlalchemy.Table(
     sqlalchemy.Column("dados_formulario", JSONB), # Usando o tipo JSONB importado
     sqlalchemy.Column("data_solicitacao", sqlalchemy.DateTime(timezone=True), server_default=sqlalchemy.func.now()),
     sqlalchemy.Column("data_decisao", sqlalchemy.DateTime(timezone=True)),
-    schema="public"
+    schema="dbo"
 )
 
 logs_bot = sqlalchemy.Table(
@@ -105,5 +105,5 @@ logs_bot = sqlalchemy.Table(
     sqlalchemy.Column("command_name", sqlalchemy.String(255)),
     sqlalchemy.Column("exception", sqlalchemy.Text),
     sqlalchemy.Column("extra_data", JSONB),
-    schema="public"
+    schema="dbo"
 )

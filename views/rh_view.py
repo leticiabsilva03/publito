@@ -5,7 +5,7 @@ import logging
 from typing import Dict, List, Any
 from datetime import timedelta, datetime, date
 import io
-import os
+import json
 from decimal import Decimal
 
 # Importando os serviços e queries
@@ -212,7 +212,8 @@ class RevisaoFinalView(discord.ui.View):
         await interaction.response.edit_message(content="🔄 Gerando seu PDF para revisão...", embed=None, view=None)
         
         dados_serializaveis = sanitizar_para_json(self.dados_formulario)
-        solicitacao_id = await criar_solicitacao(interaction.user.id, dados_serializaveis)
+        string_json = json.dumps(dados_serializaveis)
+        solicitacao_id = await criar_solicitacao(interaction.user.id, string_json)
         if not solicitacao_id:
             await interaction.edit_original_response(content="❌ Erro ao registrar sua solicitação no banco de dados.")
             return

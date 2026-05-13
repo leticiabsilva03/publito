@@ -53,10 +53,10 @@ async def buscar_colaborador_mapeado(discord_id: int) -> Optional[Dict]:
     try:
         if row:
             return {
-                "discord_id": row.discord_id,
-                "colaborador_id": row.colaborador_id,
-                "nome": row.nome,
-                "matricula": row.matricula
+                "discord_id": row["discord_id"],
+                "colaborador_id": row["colaborador_id"],
+                "nome": row["nome"],
+                "matricula": row["matricula"]
                 #"id_equipe": row.id_equipe,
             }
         return None
@@ -67,12 +67,18 @@ async def buscar_colaborador_mapeado(discord_id: int) -> Optional[Dict]:
 async def salvar_mapeamento(discord_id: int, colaborador_id: int, matricula: str, nome: str) -> bool:
     """Cria ou ignora um mapeamento de usuário (INSERT ... ON CONFLICT)."""
     try:
-        stmt = pg_insert(colaboradores).values(
-            discord_id=discord_id,
-            colaborador_id=colaborador_id,
-            matricula=str(matricula),
-            nome = nome
-        ).on_conflict_do_nothing(index_elements=['discord_id'])
+        # stmt = pg_insert(colaboradores).values(
+        #     discord_id=discord_id,
+        #     colaborador_id=colaborador_id,
+        #     matricula=str(matricula),
+        #     nome = nome
+        # ).on_conflict_do_nothing(index_elements=['discord_id'])
+
+        stmt = """
+            INSERT INTO publito..colaboradores
+            (discord_id, colaborador_id, matricula, nome)
+            VALUES (:discord_id, :colaborador_id, str(:matricula), :nome)
+        """
         await database.execute(stmt)
         return True
     except Exception as e:
@@ -121,16 +127,35 @@ async def listar_todos_responsaveis() -> List[Dict]:
 
 # --- Funções para Solicitações de Horas Extras (tabela public.solicitacoes_horas_extras) ---
 
-async def criar_solicitacao(solicitante_id: int, dados_formulario: Dict) -> Optional[int]:
-    """Cria um novo registro de solicitação e retorna o ID."""
+async def criar_solicitacao(solicitante_id: int, dados_formulario_json: str) -> Optional[int]:
+    """
+    Cria um novo registro de solicitação e retorna o ID.
+    Note que dados_formulario_json já deve vir como STRING (json.dumps).
+    """
     try:
-        query = insert(solicitacoes_horas_extras).values(
-            solicitante_discord_id=solicitante_id,
-            status='PENDENTE_APROVACAO_RESPONSAVEL',
-            dados_formulario=dados_formulario
-        ).returning(solicitacoes_horas_extras.c.id)
-        result = await database.execute(query)
-        return result
+        # SQL Server usa OUTPUT para retornar valores inseridos
+        # Aqui usamos o formato de texto para garantir compatibilidade com versões antigas
+        query = """
+            INSERT INTO dbo.solicitacoes_horas_extras 
+            (solicitante_discord_id, status, dados_formulario)
+            OUTPUT INSERTED.id
+            VALUES (:id_discord, :status, :dados)
+        """
+        
+        values = {
+            "id_discord": solicitante_id,
+            "status": 'PENDENTE_APROVACAO_RESPONSAVEL',
+            "dados": dados_formulario_json # Deve ser string!
+        }
+
+        # Usamos fetch_one porque queremos o ID de volta
+        row = await database.fetch_one(query, values=values)
+        
+        if row:
+            # No SQL Server, o retorno do OUTPUT vem em um dicionário
+            return row["id"]
+        return None
+
     except Exception as e:
         logger.error(f"Erro ao criar solicitação para {solicitante_id}: {e}", exc_info=True)
         return None
@@ -148,28 +173,38 @@ async def atualizar_status_solicitacao(solicitacao_id: int, status: str, respons
     except Exception:
         return False
 
-async def buscar_datas_bloqueadas(discord_id: int) -> List[date]:
-    """
-    Busca todas as datas de horas extras que estão pendentes ou já foram aprovadas.
-    Extrai a data de um array de objetos JSONB.
-    """
+async def buscar_datas_bloqueadas(discord_id: int):
+    # Buscamos a coluna de texto puro (dados_formulario)
     query = """
-    SELECT
-        (dia ->> 'data')::date -- 3. Extrai o valor da chave 'data' como texto e converte para data
-    FROM
-        public.solicitacoes_horas_extras s,
-        -- 1. Pega o campo 'detalhes_selecionados', que é um array JSONB
-        -- 2. Transforma cada objeto do array em uma linha separada chamada 'dia'
-        jsonb_array_elements(s.dados_formulario -> 'detalhes_selecionados') AS dia
-    WHERE 
-        s.solicitante_discord_id = :discord_id 
-        AND s.status IN ('APROVADO', 'PENDENTE_APROVACAO_RESPONSAVEL')
+        SELECT dados_formulario 
+        FROM dbo.solicitacoes_horas_extras 
+        WHERE solicitante_discord_id = :discord_id 
+        AND status IN ('APROVADO', 'PENDENTE_APROVACAO_RESPONSAVEL')
     """
+    
     try:
         results = await database.fetch_all(query, values={"discord_id": discord_id})
-        return [row[0] for row in results]
+        
+        datas_bloqueadas = []
+        import json
+        from datetime import datetime
+
+        for row in results:
+            # O SQL Server antigo trata JSON como uma string normal (NVARCHAR)
+            dados = json.loads(row["dados_formulario"])
+            
+            # Navegamos no dicionário Python como fazíamos no Postgres
+            detalhes = dados.get("detalhes_selecionados", [])
+            for dia in detalhes:
+                data_str = dia.get("data")
+                if data_str:
+                    # Converte para objeto date para manter o padrão
+                    datas_bloqueadas.append(datetime.strptime(data_str, "%Y-%m-%d").date())
+        
+        return datas_bloqueadas
+
     except Exception as e:
-        logger.error(f"Erro ao buscar datas bloqueadas para {discord_id}: {e}", exc_info=True)
+        logger.error(f"Erro ao buscar datas bloqueadas: {e}", exc_info=True)
         return []
     
 async def cancelar_solicitacao(solicitacao_id: int, solicitante_id: int) -> bool:

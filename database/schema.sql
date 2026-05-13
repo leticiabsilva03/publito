@@ -66,7 +66,7 @@ CREATE TABLE sicom.comunicados (
 );
 
 -- Criação das tabelas para o bot do Discord
-CREATE TABLE IF NOT EXISTS public.colaboradores (
+CREATE TABLE IF NOT EXISTS dbo.colaboradores (
     discord_id BIGINT PRIMARY KEY,
     colaborador_id INTEGER UNIQUE NOT NULL,
     matricula VARCHAR(50),
@@ -74,13 +74,13 @@ CREATE TABLE IF NOT EXISTS public.colaboradores (
     data_registro TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE TABLE IF NOT EXISTS public.responsaveis_equipes (
+CREATE TABLE IF NOT EXISTS dbo.responsaveis_equipes (
     equipe_id INTEGER PRIMARY KEY,
     responsavel_discord_id BIGINT NOT NULL,
     data_atualizacao TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE TABLE IF NOT EXISTS public.solicitacoes_horas_extras (
+CREATE TABLE IF NOT EXISTS dbo.solicitacoes_horas_extras (
     id SERIAL PRIMARY KEY,
     solicitante_discord_id BIGINT NOT NULL,
     responsavel_discord_id BIGINT,
@@ -91,7 +91,7 @@ CREATE TABLE IF NOT EXISTS public.solicitacoes_horas_extras (
 );
 
 -- Adiciona a restrição de status permitidos
-ALTER TABLE public.solicitacoes_horas_extras
+ALTER TABLE dbo.solicitacoes_horas_extras
 ADD CONSTRAINT status_check CHECK (status IN (
     'PENDENTE_APROVACAO_RESPONSAVEL',
     'APROVADO',
@@ -99,7 +99,7 @@ ADD CONSTRAINT status_check CHECK (status IN (
     'CANCELADO'
 ));
 
-CREATE TABLE IF NOT EXISTS public.logs_bot (
+CREATE TABLE IF NOT EXISTS dbo.logs_bot (
     id SERIAL PRIMARY KEY,
     timestamp_utc TIMESTAMPTZ NOT NULL,
     level VARCHAR(10) NOT NULL,
